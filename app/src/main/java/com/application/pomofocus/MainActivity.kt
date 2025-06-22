@@ -119,8 +119,8 @@ class MainActivity : ComponentActivity() {
 }
 
 val font = FontFamily(Font(R.font.arialroundedmt))
-const val DEFAULT_POMODORO_TIME = 7
-const val DEFAULT_BREAK_TIME = 6
+const val DEFAULT_POMODORO_TIME = 25
+const val DEFAULT_BREAK_TIME = 5
 
 @Composable
 fun PomodoroScreen(navController: NavController) {
@@ -340,7 +340,7 @@ fun BreakScreen(navController: NavController) {
                 contentDescription = ""
             )
             Text(
-                text = "Pomofocus",
+                text = "Bisafokus",
                 fontSize = 35.sp,
                 fontFamily = font,
                 fontWeight = FontWeight.Bold,
