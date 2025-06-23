@@ -124,7 +124,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             val navController = rememberNavController()
             val systemUiController = rememberSystemUiController()
-            NavHost(navController = navController, startDestination = "pomodoro") {
+            NavHost(navController = navController, startDestination = "pomodoro") {     //mengelola layar, navController digunakan untuk navigasi antar layar
                 composable("pomodoro") {
                     systemUiController.setStatusBarColor(BackPomodoro)
                     PomodoroScreen(navController)
@@ -144,6 +144,7 @@ const val DEFAULT_BREAK_TIME = 5
 
 @Composable
 fun PomodoroScreen(navController: NavController) {
+    //1. State Management
     var isStartPressed by remember { mutableStateOf(false) }
     var totalTime by remember { mutableIntStateOf(DEFAULT_POMODORO_TIME) }
     var remainingTime by remember { mutableIntStateOf(totalTime) }
@@ -160,6 +161,7 @@ fun PomodoroScreen(navController: NavController) {
         MediaPlayer.create(context, R.raw.alarm)
     }
 
+    //2. Timer Logic
     LaunchedEffect(isStartPressed) {
         if (isStartPressed) {
             while (remainingTime > 0 && isStartPressed) {
@@ -192,6 +194,7 @@ fun PomodoroScreen(navController: NavController) {
         )
     }
 
+    //3. UI
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -408,6 +411,7 @@ fun PomodoroScreen(navController: NavController) {
 
 @Composable
 fun BreakScreen(navController: NavController) {
+    //1. State Management
     var isStartPressed by remember { mutableStateOf(false) }
     var totalTime by remember { mutableIntStateOf(DEFAULT_BREAK_TIME) }
     var remainingTime by remember { mutableIntStateOf(totalTime) }
@@ -419,6 +423,7 @@ fun BreakScreen(navController: NavController) {
         MediaPlayer.create(context, R.raw.alarm)
     }
 
+    //2. Logika Timer identik dengan Pomodoro Screen
     LaunchedEffect(isStartPressed) {
         if (isStartPressed) {
             while (remainingTime > 0 && isStartPressed) {
@@ -437,6 +442,7 @@ fun BreakScreen(navController: NavController) {
         }
     }
 
+    //3. UI
     if (showDialog) {
         TimePicker(
             currentTime = remainingTime,
