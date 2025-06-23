@@ -376,7 +376,7 @@ fun PomodoroScreen(
                     OutlinedTextField(
                         value = newTaskText,
                         onValueChange = { onNewTaskTextChanged(it) },
-                        label = { Text("Add a new task", color = Color.Gray) },
+                        label = { Text("Add a new task", color = Color.White) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         colors = OutlinedTextFieldDefaults.colors(
@@ -403,10 +403,10 @@ fun PomodoroScreen(
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF555555)),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFFFFF)),
                         shape = RoundedCornerShape(8.dp)
                     ) {
-                        Text("Add Task", color = Color.White, fontFamily = font, fontSize = 18.sp)
+                        Text("Add Task", color = BackPomodoro, fontFamily = font, fontSize = 18.sp)
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
@@ -415,7 +415,7 @@ fun PomodoroScreen(
                     if (tasks.isEmpty()) {
                         Text(
                             text = "No tasks yet! Add one above.",
-                            color = Color.Gray,
+                            color = Color.White,
                             fontFamily = font,
                             fontSize = 16.sp,
                             modifier = Modifier.fillMaxWidth()
@@ -633,7 +633,7 @@ fun BreakScreen(
                     OutlinedTextField(
                         value = newTaskText,
                         onValueChange = { onNewTaskTextChanged(it) },
-                        label = { Text("Add a new task", color = Color.Gray) },
+                        label = { Text("Add a new task", color = Color.White) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         colors = OutlinedTextFieldDefaults.colors(
@@ -660,10 +660,10 @@ fun BreakScreen(
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF555555)),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFFFFF)),
                         shape = RoundedCornerShape(8.dp)
                     ) {
-                        Text("Add Task", color = Color.White, fontFamily = font, fontSize = 18.sp)
+                        Text("Add Task", color = BackBreak, fontFamily = font, fontSize = 18.sp)
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
