@@ -19,9 +19,17 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.snapshots.SnapshotStateList
+import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -32,7 +40,9 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.app.ActivityCompat
@@ -53,29 +63,11 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.util.UUID
 import kotlin.math.cos
 import kotlin.math.sin
-import androidx.compose.material3.Checkbox // Baris baru
-import androidx.compose.material3.CheckboxDefaults // Baris baru
-import androidx.compose.material3.OutlinedTextField // Baris baru
-import androidx.compose.material3.OutlinedTextFieldDefaults // Baris baru
-import androidx.compose.ui.text.style.TextDecoration // Baris baru
-import androidx.compose.foundation.lazy.LazyColumn // Baris baru
-import androidx.compose.foundation.lazy.items // Baris baru
-import androidx.compose.ui.text.input.ImeAction // Baris baru
-import androidx.compose.foundation.text.KeyboardActions // Baris baru
-import androidx.compose.foundation.text.KeyboardOptions // Baris baru
-import androidx.compose.material3.Card // Baris baru
-import androidx.compose.material3.CardDefaults // Baris baru
-import androidx.compose.material3.Icon // Baris baru
-import androidx.compose.material3.IconButton // Baris baru
-import androidx.compose.foundation.rememberScrollState // <<< BARIS BARU INI
-import androidx.compose.foundation.verticalScroll // <<< BARIS BARU INI
 
-import java.util.UUID // Baris baru
-
-import androidx.compose.runtime.mutableStateListOf // Baris baru: Pastikan ini ada
-
+// --- FUNGSI HELPER NOTIFIKASI ---
 fun createNotificationChannel(context: Context) {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
         val name = "Pomodoro Notification"
@@ -117,6 +109,7 @@ fun showNotification(context: Context, title: String, message: String) {
     }
 }
 
+// --- MAIN ACTIVITY ---
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -124,26 +117,80 @@ class MainActivity : ComponentActivity() {
         setContent {
             val navController = rememberNavController()
             val systemUiController = rememberSystemUiController()
-            NavHost(navController = navController, startDestination = "pomodoro") {     //mengelola layar, navController digunakan untuk navigasi antar layar
+
+            // --- STATE TASKS (DIHOISTED KE MAINACTIVITY) ---
+            val tasks = remember { mutableStateListOf<Task>() }
+            var newTaskText by remember { mutableStateOf("") }
+            // --- AKHIR STATE TASKS ---
+
+            NavHost(navController = navController, startDestination = "pomodoro") {
                 composable("pomodoro") {
                     systemUiController.setStatusBarColor(BackPomodoro)
-                    PomodoroScreen(navController)
+                    PomodoroScreen(
+                        navController = navController,
+                        tasks = tasks,
+                        newTaskText = newTaskText,
+                        onNewTaskTextChanged = { newValue -> newTaskText = newValue },
+                        onAddTask = { task ->
+                            tasks.add(task)
+                            newTaskText = "" // Bersihkan input setelah menambahkan
+                        },
+                        onToggleTaskComplete = { toggledTask ->
+                            val updatedList = tasks.toMutableList()
+                            val taskIndex = updatedList.indexOfFirst { it.id == toggledTask.id }
+                            if (taskIndex != -1) {
+                                updatedList[taskIndex] = toggledTask.copy(isCompleted = !toggledTask.isCompleted)
+                                tasks.clear()
+                                tasks.addAll(updatedList)
+                            }
+                        },
+                        onDeleteTask = { task -> tasks.remove(task) }
+                    )
                 }
                 composable("break") {
                     systemUiController.setStatusBarColor(BackBreak)
-                    BreakScreen(navController)
+                    BreakScreen(
+                        navController = navController,
+                        tasks = tasks,
+                        newTaskText = newTaskText,
+                        onNewTaskTextChanged = { newValue -> newTaskText = newValue },
+                        onAddTask = { task ->
+                            tasks.add(task)
+                            newTaskText = ""
+                        },
+                        onToggleTaskComplete = { toggledTask ->
+                            val updatedList = tasks.toMutableList()
+                            val taskIndex = updatedList.indexOfFirst { it.id == toggledTask.id }
+                            if (taskIndex != -1) {
+                                updatedList[taskIndex] = toggledTask.copy(isCompleted = !toggledTask.isCompleted)
+                                tasks.clear()
+                                tasks.addAll(updatedList)
+                            }
+                        },
+                        onDeleteTask = { task -> tasks.remove(task) }
+                    )
                 }
             }
         }
     }
 }
 
+// --- KONSTANTA GLOBAL ---
 val font = FontFamily(Font(R.font.arialroundedmt))
 const val DEFAULT_POMODORO_TIME = 25
 const val DEFAULT_BREAK_TIME = 5
 
+// --- POMODORO SCREEN ---
 @Composable
-fun PomodoroScreen(navController: NavController) {
+fun PomodoroScreen(
+    navController: NavController,
+    tasks: SnapshotStateList<Task>,
+    newTaskText: String,
+    onNewTaskTextChanged: (String) -> Unit,
+    onAddTask: (Task) -> Unit,
+    onToggleTaskComplete: (Task) -> Unit,
+    onDeleteTask: (Task) -> Unit
+) {
     //1. State Management
     var isStartPressed by remember { mutableStateOf(false) }
     var totalTime by remember { mutableIntStateOf(DEFAULT_POMODORO_TIME) }
@@ -151,11 +198,6 @@ fun PomodoroScreen(navController: NavController) {
     var showDialog by remember { mutableStateOf(false) }
     var progress by remember { mutableFloatStateOf(1f) }
     val context = LocalContext.current
-
-    // --- MULAI TAMBAHAN UNTUK TASK ---
-    val tasks = remember { mutableStateListOf<Task>() }
-    var newTaskText by remember { mutableStateOf("") }
-    // --- AKHIR TAMBAHAN ---
 
     val mediaPlayer = remember {
         MediaPlayer.create(context, R.raw.alarm)
@@ -175,6 +217,15 @@ fun PomodoroScreen(navController: NavController) {
                 CoroutineScope(Dispatchers.Main).launch {
                     mediaPlayer.start()
                 }
+                // --- Logika Coret Tugas Otomatis ---
+                val updatedTasksAfterPomodoro = tasks.map {
+                    if (!it.isCompleted) it.copy(isCompleted = true) else it
+                }.toMutableStateList()
+
+                tasks.clear()
+                tasks.addAll(updatedTasksAfterPomodoro)
+                // --- Akhir Logika Coret Tugas Otomatis ---
+
                 navController.navigate("break")
             }
         }
@@ -221,24 +272,26 @@ fun PomodoroScreen(navController: NavController) {
                 color = Color.White
             )
         }
-        Box( // Ini adalah Box dengan background FrontPomodoro
+        Box( // Box dengan background FrontPomodoro (Kotak utama UI)
             modifier = Modifier
-                .fillMaxSize() // Ini tetap fillMaxSize untuk Box utama
-                .padding(start = 20.dp, end = 20.dp, top = 90.dp, bottom = 10.dp) // padding Box utama
+                .fillMaxWidth() // Mengisi lebar penuh
+                .wrapContentHeight() // Menyesuaikan tinggi dengan konten
+                .align(Alignment.Center) // Tetap di tengah secara vertikal
+                .padding(start = 20.dp, end = 20.dp, top = 90.dp, bottom = 10.dp) // Padding disesuaikan
                 .background(FrontPomodoro, shape = RoundedCornerShape(10.dp)),
             contentAlignment = Alignment.Center
-        ){
-            val scrollState = rememberScrollState() // <<< BARIS BARU: Untuk mengelola scroll state
+        ) {
+            val scrollState = rememberScrollState() // Untuk scroll layar penuh
 
             Column( // Column utama yang akan bisa di-scroll
                 modifier = Modifier
-                    .fillMaxSize() // <<< UBAH INI: Agar Column ini mengisi Box dan bisa di-scroll
+                    .fillMaxSize() // Mengisi Box induk
                     .padding(horizontal = 20.dp, vertical = 20.dp) // padding internal Column
-                    .verticalScroll(scrollState), // <<< INI KUNCI SCROLL LAYAR PENUH
+                    .verticalScroll(scrollState), // INI KUNCI SCROLL LAYAR PENUH
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Top // Tetap Top, kita kelola spasi manual
-            ){
-                // Tombol Pomodoro / Break (TETAP DI ATAS)
+                verticalArrangement = Arrangement.Top // Elemen tersusun dari atas ke bawah
+            ) {
+                // Tombol Pomodoro / Break
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.Center
@@ -279,7 +332,7 @@ fun PomodoroScreen(navController: NavController) {
                 }
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Bagian Timer (TETAP DI TENGAH ATAS)
+                // Bagian Timer
                 Box(
                     modifier = Modifier.fillMaxWidth(),
                     contentAlignment = Alignment.Center
@@ -300,9 +353,9 @@ fun PomodoroScreen(navController: NavController) {
                     )
                 }
 
-                Spacer(modifier = Modifier.height(24.dp)) // Spasi antara timer dan tombol START
+                Spacer(modifier = Modifier.height(24.dp))
 
-                // Tombol START/PAUSE (INI POSISI BARUNYA: DI BAWAH TIMER)
+                // Tombol START/PAUSE
                 TimerButton(
                     context = context,
                     backColor = BackPomodoro,
@@ -311,19 +364,18 @@ fun PomodoroScreen(navController: NavController) {
                     onClick = { isStartPressed = !isStartPressed }
                 )
 
-                Spacer(modifier = Modifier.height(32.dp)) // Spasi antara Tombol START dan Bagian Task
+                Spacer(modifier = Modifier.height(32.dp))
 
-                // --- AWAL BAGIAN INPUT DAN DAFTAR TUGAS (INI POSISI BARUNYA: DI BAWAH TOMBOL START) ---
-                Column(
+                // --- BAGIAN INPUT DAN DAFTAR TUGAS ---
+                Column( // Column ini menampung Input dan Daftar Tugas
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(min = 100.dp, max = 300.dp), // <<< PENTING: Batasi tinggi Column ini,
-//                        .weight(1f), // <<< Ini akan mengambil sisa ruang vertikal di bawah Tombol START
+                        .heightIn(min = 100.dp, max = 300.dp), // Batasi tinggi Column ini
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     OutlinedTextField(
                         value = newTaskText,
-                        onValueChange = { newTaskText = it },
+                        onValueChange = { onNewTaskTextChanged(it) },
                         label = { Text("Add a new task", color = Color.Gray) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
@@ -339,8 +391,7 @@ fun PomodoroScreen(navController: NavController) {
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                         keyboardActions = KeyboardActions(onDone = {
                             if (newTaskText.isNotBlank()) {
-                                tasks.add(Task(UUID.randomUUID().toString(), newTaskText))
-                                newTaskText = ""
+                                onAddTask(Task(UUID.randomUUID().toString(), newTaskText))
                             }
                         })
                     )
@@ -348,8 +399,7 @@ fun PomodoroScreen(navController: NavController) {
                     Button(
                         onClick = {
                             if (newTaskText.isNotBlank()) {
-                                tasks.add(Task(UUID.randomUUID().toString(), newTaskText))
-                                newTaskText = ""
+                                onAddTask(Task(UUID.randomUUID().toString(), newTaskText))
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),
@@ -361,56 +411,49 @@ fun PomodoroScreen(navController: NavController) {
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // Daftar Tugas (Ini akan bisa di-scroll jika melebihi tinggi maksimum)
+                    // Daftar Tugas
                     if (tasks.isEmpty()) {
                         Text(
                             text = "No tasks yet! Add one above.",
                             color = Color.Gray,
                             fontFamily = font,
                             fontSize = 16.sp,
-                            modifier = Modifier.fillMaxWidth() // Tidak ada weight di sini, tinggi diatur oleh LazyColumn induk
+                            modifier = Modifier.fillMaxWidth()
                         )
                     } else {
                         LazyColumn(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .fillMaxHeight()
-//                                .heightIn(max = 120.dp) // <<< TINGGI MAKSIMUM UNTUK SCROLL, SESUAIKAN JIKA PERLU
                         ) {
                             items(tasks.size) { index ->
                                 val task = tasks[index]
                                 TaskItem(
                                     task = task,
-                                    onToggleComplete = { toggledTask ->
-                                        val updatedList = tasks.toMutableList()
-                                        val taskIndex = updatedList.indexOfFirst { it.id == toggledTask.id }
-                                        if (taskIndex != -1) {
-                                            updatedList[taskIndex] = toggledTask.copy(isCompleted = !toggledTask.isCompleted)
-                                            tasks.clear()
-                                            tasks.addAll(updatedList)
-                                        }
-                                    },
-                                    onDelete = { deletedTask ->
-                                        tasks.remove(deletedTask)
-                                    }
+                                    onToggleComplete = { toggledTask -> onToggleTaskComplete(toggledTask) },
+                                    onDelete = { deletedTask -> onDeleteTask(deletedTask) }
                                 )
                             }
                         }
                     }
                 }
                 // --- AKHIR BAGIAN INPUT DAN DAFTAR TUGAS ---
-             // Penutup untuk Column utama di dalam Box FrontPomodoro
-
-                // --- BAGIAN BAWAH (Tombol START/PAUSE) ---
-
-                // --- AKHIR BAGIAN BAWAH ---
             }
         }
     }
 }
 
+// --- BREAK SCREEN ---
 @Composable
-fun BreakScreen(navController: NavController) {
+fun BreakScreen(
+    navController: NavController,
+    tasks: SnapshotStateList<Task>, // Diterima dari MainActivity
+    newTaskText: String, // Diterima dari MainActivity
+    onNewTaskTextChanged: (String) -> Unit, // Callback ke MainActivity
+    onAddTask: (Task) -> Unit, // Callback ke MainActivity
+    onToggleTaskComplete: (Task) -> Unit, // Callback ke MainActivity
+    onDeleteTask: (Task) -> Unit // Callback ke MainActivity
+) {
     //1. State Management
     var isStartPressed by remember { mutableStateOf(false) }
     var totalTime by remember { mutableIntStateOf(DEFAULT_BREAK_TIME) }
@@ -423,7 +466,7 @@ fun BreakScreen(navController: NavController) {
         MediaPlayer.create(context, R.raw.alarm)
     }
 
-    //2. Logika Timer identik dengan Pomodoro Screen
+    //2. Logika Timer
     LaunchedEffect(isStartPressed) {
         if (isStartPressed) {
             while (remainingTime > 0 && isStartPressed) {
@@ -437,6 +480,10 @@ fun BreakScreen(navController: NavController) {
                 CoroutineScope(Dispatchers.Main).launch {
                     mediaPlayer.start()
                 }
+                // --- TIDAK ADA LOGIKA CORET TUGAS DI BREAK SCREEN ---
+                // Logika coret tugas hanya ada di PomodoroScreen saat selesai.
+                // Bagian ini dihapus dari BreakScreen.
+
                 navController.navigate("pomodoro")
             }
         }
@@ -483,20 +530,26 @@ fun BreakScreen(navController: NavController) {
                 color = Color.White
             )
         }
-        Box(
+        Box( // Box dengan background FrontBreak (Kotak utama UI)
             modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 20.dp, vertical = 175.dp)
+                .fillMaxWidth() // Mengisi lebar penuh
+                .wrapContentHeight() // Menyesuaikan tinggi dengan konten
+                .align(Alignment.Center) // Tetap di tengah secara vertikal
+                .padding(start = 20.dp, end = 20.dp, top = 90.dp, bottom = 10.dp) // Padding disesuaikan
                 .background(FrontBreak, shape = RoundedCornerShape(10.dp)),
             contentAlignment = Alignment.Center
         ) {
-            Column(
+            val scrollState = rememberScrollState() // Untuk scroll layar penuh
+
+            Column( // Column utama yang akan bisa di-scroll
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 20.dp, vertical = 20.dp),
+                    .fillMaxSize() // Mengisi Box induk
+                    .padding(horizontal = 20.dp, vertical = 20.dp) // padding internal Column
+                    .verticalScroll(scrollState), // INI KUNCI SCROLL LAYAR PENUH
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.SpaceBetween
+                verticalArrangement = Arrangement.Top // Elemen tersusun dari atas ke bawah
             ) {
+                // Tombol Pomodoro / Break
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.Center
@@ -534,7 +587,9 @@ fun BreakScreen(navController: NavController) {
                         )
                     }
                 }
+                Spacer(modifier = Modifier.height(16.dp))
 
+                // Bagian Timer
                 Box(
                     modifier = Modifier.fillMaxWidth(),
                     contentAlignment = Alignment.Center
@@ -555,6 +610,9 @@ fun BreakScreen(navController: NavController) {
                     )
                 }
 
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // Tombol START/PAUSE
                 TimerButton(
                     context = context,
                     backColor = BackBreak,
@@ -562,11 +620,86 @@ fun BreakScreen(navController: NavController) {
                     isPressed = isStartPressed,
                     onClick = { isStartPressed = !isStartPressed }
                 )
+
+                Spacer(modifier = Modifier.height(32.dp))
+
+                // --- BAGIAN INPUT DAN DAFTAR TUGAS ---
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 100.dp, max = 300.dp), // Batasi tinggi Column ini
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    OutlinedTextField(
+                        value = newTaskText,
+                        onValueChange = { onNewTaskTextChanged(it) },
+                        label = { Text("Add a new task", color = Color.Gray) },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color.White,
+                            unfocusedBorderColor = Color.LightGray,
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            focusedLabelColor = Color.White,
+                            unfocusedLabelColor = Color.LightGray,
+                            cursorColor = Color.White
+                        ),
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                        keyboardActions = KeyboardActions(onDone = {
+                            if (newTaskText.isNotBlank()) {
+                                onAddTask(Task(UUID.randomUUID().toString(), newTaskText))
+                            }
+                        })
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Button(
+                        onClick = {
+                            if (newTaskText.isNotBlank()) {
+                                onAddTask(Task(UUID.randomUUID().toString(), newTaskText))
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF555555)),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text("Add Task", color = Color.White, fontFamily = font, fontSize = 18.sp)
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Daftar Tugas
+                    if (tasks.isEmpty()) {
+                        Text(
+                            text = "No tasks yet! Add one above.",
+                            color = Color.Gray,
+                            fontFamily = font,
+                            fontSize = 16.sp,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .fillMaxHeight()
+                        ) {
+                            items(tasks.size) { index ->
+                                val task = tasks[index]
+                                TaskItem(
+                                    task = task,
+                                    onToggleComplete = { toggledTask -> onToggleTaskComplete(toggledTask) },
+                                    onDelete = { deletedTask -> onDeleteTask(deletedTask) }
+                                )
+                            }
+                        }
+                    }
+                }
+                // --- AKHIR BAGIAN INPUT DAN DAFTAR TUGAS ---
             }
         }
     }
 }
-
+// ... (fungsi TimerButton, TimePicker, TimerClock, TaskItem lainnya)
 
 @Composable
 fun TimerButton(
